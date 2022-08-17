@@ -1,16 +1,13 @@
-# Near JustArt Market DApp
+# Celo JustArt Market DApp
 An Art market where people can buy and sell art items.
 
-[Demo Link](near-justart-market.vercel.app)
+[Demo Link](##)
 
 Features
 - Users can create new listings, where they set the upload the data on the art item.
 - Users can view their own listings or items they've bought in the my-items page.
 - There is an option for users to relist an item they've bought, and also change the price of that item.
 
-#### Please Note: 
-Due to deployment issues, I had to move the contract files to the a new repo.
-[repo link](https://github.com/Houselearn/Near-justart-market-contract)
 
 # Next.js + Tailwind CSS Example
 
