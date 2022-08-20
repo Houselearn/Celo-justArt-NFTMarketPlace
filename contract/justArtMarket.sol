@@ -4,6 +4,7 @@ pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract JustArtMarket is Ownable, ReentrancyGuard {
     // EVENTS
@@ -63,10 +64,14 @@ contract JustArtMarket is Ownable, ReentrancyGuard {
     uint256 marketFeePercentage;
     uint256 itemCount;
     mapping(string => Item) public Items;
+    mapping(uint256 => string) public ItemIDMapping;
     mapping(address => string[]) public userItems;
 
     uint256 invalidIndex =
         115792089237316195423570985008687907853269984665640564039457584007913129639935;
+
+    address internal cUsdTokenAddress =
+        0x874069Fa1Eb16D44d622F2e0Ca25eeA172369bC1;
 
     // METHODS
     constructor(uint256 _marketFeePercentage) {
@@ -75,7 +80,7 @@ contract JustArtMarket is Ownable, ReentrancyGuard {
         marketFeePercentage = _marketFeePercentage / 100;
     }
 
-    function AddNewItem(
+    function addNewItem(
         string memory _id,
         string memory _name,
         string memory _description,
@@ -84,8 +89,6 @@ contract JustArtMarket is Ownable, ReentrancyGuard {
         uint256 _price
     ) external nonReentrant {
         require(Items[_id].owner == address(0), "Item Already EXISTS");
-
-        itemCount++;
 
         Item storage _Item = Items[_id];
         _Item.id = _id;
@@ -97,13 +100,16 @@ contract JustArtMarket is Ownable, ReentrancyGuard {
         _Item.isItemListed = true;
         _Item.owner = msg.sender;
 
-        emit ItemCreated(_id, msg.sender, _name, _price);
+        ItemIDMapping[itemCount] = _id;
+
+        itemCount++;
 
         listItem(_id);
+        emit ItemCreated(_id, msg.sender, _name, _price);
     }
 
-    function buyItems(string memory _itemId) external payable nonReentrant {
-        Item memory _Item = Items[_itemId];
+    function buyItems(string memory _itemId) external nonReentrant {
+        Item storage _Item = Items[_itemId];
 
         //run checks
         require(
@@ -111,25 +117,38 @@ contract JustArtMarket is Ownable, ReentrancyGuard {
             "Item not found"
         );
 
+        // get fee from attached deposit and transfer accordingly
+        uint256 fee = _Item.price * marketFeePercentage;
+        uint256 remaining = _Item.price - fee;
+
         require(
-            _Item.price == msg.value,
-            "Attached deposit should be equal to the item's price"
+            IERC20(cUsdTokenAddress).transferFrom(
+                msg.sender,
+                _Item.owner,
+                remaining
+            ),
+            "Failed to send remaining to item owner"
         );
 
-        // get fee from attached deposit and transfer accordingly
-        uint256 fee = msg.value * marketFeePercentage;
-        uint256 remaining = msg.value - fee;
-
-        (bool sentRemaining, ) = _Item.owner.call{value: remaining}("");
-        require(sentRemaining, "Failed to send Celo to item owner");
-
-        (bool sentFee, ) = owner().call{value: fee}("");
-        require(sentFee, "Failed to send Celo to contract owner");
+        require(
+            IERC20(cUsdTokenAddress).transferFrom(msg.sender, owner(), fee),
+            "Failed to fee to contract owner"
+        );
 
         //remove item from current owner
         removeItem(_itemId, _Item.owner);
+
         // add item to buyer
         userItems[msg.sender].push(_itemId);
+
+        //unlist Item from market
+        _Item.isItemListed = false;
+
+        //set buyer as item owner
+        _Item.owner = msg.sender;
+
+        //add new transaction history
+        newHistory(_itemId, Type.BUY);
 
         emit ItemSold(msg.sender, _Item.name, _Item.id, _Item.price);
     }
@@ -155,8 +174,8 @@ contract JustArtMarket is Ownable, ReentrancyGuard {
         _Item.price = _price;
         _Item.isItemListed = true;
 
-        // add listing
-        listItem(_itemId);
+        //add new transaction history
+        newHistory(_itemId, Type.ADD);
 
         emit ItemRelisted(msg.sender, _Item.name, _Item.id, _Item.price);
     }
@@ -193,8 +212,9 @@ contract JustArtMarket is Ownable, ReentrancyGuard {
     // Internal Functions
 
     function listItem(string memory _itemId) internal {
+        string[] memory _array = userItems[msg.sender];
         // find item
-        uint256 itemIndex = findItem(_itemId, msg.sender);
+        uint256 itemIndex = findItem(_itemId, _array);
 
         // check if is item index is invalid
         if (itemIndex == invalidIndex) {
@@ -205,27 +225,36 @@ contract JustArtMarket is Ownable, ReentrancyGuard {
         newHistory(_itemId, Type.ADD);
     }
 
-    function removeItem(string memory _itemId, address _user) internal {
-        uint256 index = findItem(_itemId, _user);
-        require(index <= userItems[_user].length, "invalid index");
+    function removeItem(string memory _Item, address _owner) internal {
+        string[] storage _array = userItems[_owner];
 
-        for (uint256 i = index; i < userItems[_user].length - 1; i++) {
-            userItems[msg.sender][i] = userItems[_user][i + 1];
+        // find item
+        uint256 index = findItem(_Item, _array);
+
+        require(index <= _array.length, "invalid index");
+
+        // delete item
+        for (uint256 i = index; i < _array.length - 1; i++) {
+            _array[i] = _array[i + 1];
         }
-        userItems[msg.sender].pop();
+        _array.pop();
+
+        //update user array
+        userItems[_owner] = _array;
     }
 
-    function findItem(string memory _itemId, address _user)
+    function findItem(string memory _itemId, string[] memory _array)
         internal
-        view
+        pure
         returns (uint256)
     {
         int256 index = -1;
 
-        for (int256 i = 0; i < int256(userItems[_user].length); i++) {
+        // check if item exists
+        for (int256 i = 0; i < int256(_array.length); i++) {
             if (
                 keccak256(bytes(_itemId)) !=
-                keccak256(bytes(userItems[_user][uint256(i)]))
+                keccak256(bytes(_array[uint256(i)]))
             ) {
                 continue;
             }
@@ -258,7 +287,9 @@ contract JustArtMarket is Ownable, ReentrancyGuard {
     }
 
     // View Methods
-    function getItems(string memory _itemId)
+
+    //returns item from itemID
+    function getItemFromID(string memory _itemId)
         external
         view
         returns (Item memory)
@@ -266,10 +297,23 @@ contract JustArtMarket is Ownable, ReentrancyGuard {
         return Items[_itemId];
     }
 
+    //returns from item count mapping
+    function getItemFromCountMap(uint256 _count)
+        external
+        view
+        returns (Item memory)
+    {
+        string memory itemId = ItemIDMapping[_count];
+
+        return Items[itemId];
+    }
+
+    // return item count
     function getItemCounts() external view returns (uint256) {
         return itemCount;
     }
 
+    // return useritems array
     function getUserItems(address _user)
         external
         view
@@ -278,6 +322,7 @@ contract JustArtMarket is Ownable, ReentrancyGuard {
         return userItems[_user];
     }
 
+    // returns marketfee percentage
     function getMarketFee() external view returns (uint256) {
         return marketFeePercentage;
     }

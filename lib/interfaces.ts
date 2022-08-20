@@ -17,7 +17,7 @@ export interface Item {
 
 export interface Transaction {
   id: number;
-  type: string;
+  tranType: string;
   from: string;
   price: string;
   createdAt: number;
