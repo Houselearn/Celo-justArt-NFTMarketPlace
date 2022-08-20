@@ -11,8 +11,10 @@ module.exports = {
         path: false,
         os: false,
         net: false,
-        stream: false,
-        https: false,
+        crypto: require.resolve("crypto-browserify"),
+        querystring: require.resolve("query-string"),
+        stream: "stream-browserify",
+        https: "agent-base",
         http: false,
       },
     };
