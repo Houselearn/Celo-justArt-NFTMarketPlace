@@ -1,10 +1,12 @@
 import React from "react";
 import { Dropdown, Stack, Spinner } from "react-bootstrap";
+import { truncateAddress, formatBigNumber } from "lib/utils";
+import BigNumber from "bignumber.js";
 
 import "bootstrap-icons/font/bootstrap-icons.css";
 import "bootstrap/dist/css/bootstrap.min.css";
 
-export function Wallet({ address, amount, symbol, destroy }: { address: string; amount: string; symbol: string; destroy: Function }) {
+export function Wallet({ address, amount, symbol, destroy }: { address: string; amount: BigNumber; symbol: string; destroy: Function }) {
   if (address) {
     return (
       <>
@@ -16,7 +18,7 @@ export function Wallet({ address, amount, symbol, destroy }: { address: string; 
           >
             {amount ? (
               <>
-                {amount} <span className="ms-1"> {symbol}</span>
+                {formatBigNumber(amount)} <span className="ms-1"> {symbol}</span>
               </>
             ) : (
               <Spinner animation="border" size="sm" className="opacity-25" />
@@ -25,12 +27,12 @@ export function Wallet({ address, amount, symbol, destroy }: { address: string; 
 
           <Dropdown.Menu className="shadow-lg border-0">
             <Dropdown.Item
-              href={`https://explorer.testnet.near.org/accounts/${address}`}
+              href={`https://alfajores-blockscout.celo-testnet.org/address/${address}/transactions`}
               target="_blank"
             >
               <Stack direction="horizontal" gap={2}>
                 <i className="bi bi-person-circle fs-4" />
-                <span className="font-monospace">{address}</span>
+                <span className="font-monospace">{truncateAddress(address)}</span>
               </Stack>
             </Dropdown.Item>
 

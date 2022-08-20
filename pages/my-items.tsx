@@ -1,27 +1,29 @@
 import React, { useState, useCallback, useEffect } from "react";
 import { Layout, Loader } from "components";
 import { ItemList } from "components/item-list/item-list";
-import { getUserItems, getItem } from "lib/utils/market";
-import { useNearContext } from "lib/utils/nearweb3";
+import { getUserItemsArray, getItemFromID } from "lib/market";
+import { useWeb3 } from "lib/web3";
+import { useMarketContract } from "lib/contracts";
 import { Item } from "lib/interfaces";
 
 function MyListings() {
-  const [items, setItems] = useState([]);
+  const [items, setItems] = useState<Item[]>(null);
   const [loading, setLoading] = useState(false);
 
-  const { accountId, contract } = useNearContext();
+  const { account } = useWeb3();
+  const contract = useMarketContract();
 
   // function to get the list of items
   const retrieveItems = useCallback(async () => {
-    if (contract === null) {
+    if (contract === null && account === null) {
       return
     }
     try {
       setLoading(true);
-      const userItemsIds = await getUserItems(accountId, contract);
+      const userItemsIds = await getUserItemsArray(account, contract);
       const userItemsArr: Item[] = [];
       for (let i = 0; i < userItemsIds.length; i++) {
-        const item = await getItem(userItemsIds[i], contract);
+        const item = await getItemFromID(userItemsIds[i], contract);
         userItemsArr.push(item);
       }
       setItems(userItemsArr);
@@ -33,10 +35,10 @@ function MyListings() {
   }, [contract]);
 
   useEffect(() => {
-    if (accountId !== null) {
+    if (items === null) {
       retrieveItems();
     }
-  }, [retrieveItems, accountId])
+  }, [retrieveItems, account])
 
   return (
     <Layout>

@@ -1,6 +1,6 @@
 import 'tailwindcss/tailwind.css';
 import './styles.css';
-import { NearProvider } from 'lib/utils/nearweb3';
+import { Web3Provider } from 'lib/web3';
 import dayjs from 'dayjs';
 import localizedFormat from 'dayjs/plugin/localizedFormat';
 import 'react-toastify/dist/ReactToastify.css';
@@ -15,7 +15,7 @@ dayjs.extend(localizedFormat);
 
 function App({ Component, pageProps }) {
   return (
-    <NearProvider>
+    <Web3Provider>
       <Head>
         <title>justArt Market</title>
 
@@ -23,7 +23,7 @@ function App({ Component, pageProps }) {
       </Head>
       <Component {...pageProps} />
       <ToastContainer />
-    </NearProvider>
+    </Web3Provider>
   )
 }
 

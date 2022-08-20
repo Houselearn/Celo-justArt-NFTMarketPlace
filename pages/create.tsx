@@ -1,42 +1,49 @@
 import { Button, Input, Layout, Select } from "components";
-import { useNearContext } from "lib/utils/nearweb3";
+import { useWeb3 } from "lib/web3";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
-import { addNewItem, getItem } from "../lib/utils/market"
-import { range } from 'lodash';
+import { addNewItem } from "../lib/market"
+import { useMarketContract } from "lib/contracts";
 import { useRouter } from "next/router";
 import { toast } from "react-toastify";
-import { Alert } from "react-bootstrap";
+import { Item } from "lib/interfaces";
 
 function Create() {
-  const { accountId, login } = useNearContext();
+  const { account, connect } = useWeb3();
   const [loading, setLoading] = useState(false);
   const router = useRouter();
   const { register, handleSubmit } = useForm<any>({ defaultValues: { duration: "86400", type: "0" } });
-  const { contract } = useNearContext();
+  const marketContract = useMarketContract();
 
   async function handleCreate(params) {
     let id: string = "/"
-    if (contract === null) {
+    if (marketContract === null) {
       return
     }
-    if (!accountId) {
-      await login();
+    if (!account) {
+      await connect();
     }
     try {
       setLoading(true)
-      id = await addNewItem({ name: params.name, description: params.description, image: params.image, location: params.location, price: params.price }, contract)
+      const item: Item = {
+        name: params.name,
+        description: params.description,
+        image: params.image,
+        location: params.location,
+        price: params.price
+      }
+      id = await addNewItem(item, marketContract, account);
       toast.success('Listing created')
+      router.push(`/items/${id}`);
     } catch (e) {
       console.log({ e });
       toast.error("Failed to create a product.");
     } finally {
       setLoading(false)
-      router.push(`/items/${id}`);
     }
   }
 
-  const buttonLabel = !accountId ? 'Connect Wallet' : 'Create Listing';
+  const buttonLabel = !account ? 'Connect Wallet' : 'Create Listing';
 
   return (
     <Layout>
@@ -77,7 +84,8 @@ function Create() {
               <div>
                 <Input
                   type="number"
-                  label="Price (in NEAR)"
+                  step={0.01}
+                  label="Price (in cUSD)"
                   {...register('price', { required: true })}
                 />
               </div>

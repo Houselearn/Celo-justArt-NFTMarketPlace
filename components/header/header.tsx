@@ -1,41 +1,39 @@
 import logo from 'lib/assets/logo.svg';
-import { useNearContext } from 'lib/utils/nearweb3';
+import { useWeb3 } from 'lib/web3';
 import { Fragment, useEffect, useCallback, useState } from 'react';
 import { Wallet } from 'components';
 import Link from 'next/link';
 
 export function Header() {
-  const { login, logout, walletConnection, initialize, getBalance, getAccountId } = useNearContext();
+  const { account, connect, checkConnection, disconnect, getBalance, getAccount } = useWeb3();
   const [balance, setBalance] = useState(null);
-  const [accountId, setAccountId] = useState("");
+  const [accountAddr, setAccountAddr] = useState("");
 
-  const initDApp = useCallback(async () => {
-    await initialize()
+  const checkIfConnected = useCallback(async () => {
+    await checkConnection()
   }, []);
 
-  const getAccount = useCallback(async () => {
-    if (walletConnection !== null) {
-      const account = await getAccountId();
-      setAccountId(account);
-
-      if (account) {
-        const balance = await getBalance();
-        setBalance(balance)
-      }
+  const getAccountData = useCallback(async () => {
+    if (account !== null) {
+      setAccountAddr(account)
+      const balance = await getBalance();
+      setBalance(balance)
     }
-  }, [walletConnection])
+  }, [account])
 
-  function disconnect() {
-    setAccountId("");
-    logout();
+  function logout() {
+    setAccountAddr("");
+    setBalance(null);
+    disconnect();
   }
 
   useEffect(() => {
-    if (walletConnection === null) {
-      initDApp();
+    if (account !== null || account !== accountAddr && balance === null) {
+      getAccountData();
     }
-    getAccount();
-  }, [initDApp, walletConnection, getAccount])
+
+
+  }, [checkIfConnected, account, getAccountData])
 
   return (
     <div className="bg-gray-900 border-b border-gray-800 text-white text-sm font-mono">
@@ -47,7 +45,7 @@ export function Header() {
           </a>
         </div>
         <div className="flex space-x-6 items-center">
-          {accountId ? (
+          {accountAddr ? (
             <Fragment>
               <Link href="/create">
                 <a>Create</a>
@@ -56,14 +54,14 @@ export function Header() {
                 <a>My Items</a>
               </Link>
               <Wallet
-                address={accountId}
+                address={accountAddr}
                 amount={balance}
-                symbol="NEAR"
-                destroy={disconnect}
+                symbol="cUSD"
+                destroy={logout}
               />
             </Fragment>
           ) : (
-            <a onClick={login} className="border border-red-500 px-3 py-2">Connect Wallet</a>
+            <a onClick={connect} className="border border-red-500 px-3 py-2">Connect Wallet</a>
           )}
         </div>
       </div>

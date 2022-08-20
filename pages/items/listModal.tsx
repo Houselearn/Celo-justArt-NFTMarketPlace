@@ -3,11 +3,13 @@ import { Input, Modal, Button } from "components";
 import { useForm } from "react-hook-form";
 import { toast } from "react-toastify";
 import { useRouter } from "next/router";
-import { relistItem } from "lib/utils/market";
-import { Contract } from "near-api-js";
+import { relistItem } from "lib/market";
+import { Contract } from "web3-eth-contract";
+import { useWeb3 } from "lib/web3"
 
 
-function ListItemModal({ id, contract, handleClose, update }: { update: Function, handleClose: Function, id: string, contract: Contract }) {
+function ListItemModal({ id, marketContract, handleClose, update }: { update: Function, handleClose: Function, id: string, marketContract: Contract }) {
+    const { account } = useWeb3();
     const { register, handleSubmit } = useForm<any>({ defaultValues: { duration: "86400", type: "0" } });
     const [loading, setLoading] = useState(false);
     const router = useRouter();
@@ -15,7 +17,7 @@ function ListItemModal({ id, contract, handleClose, update }: { update: Function
     async function handleCreate(params) {
         try {
             setLoading(true)
-            await relistItem(id, params.price, params.location, contract)
+            await relistItem(id, params.price, params.location, marketContract, account)
             toast.success('Item relisted')
         } catch (e) {
             console.log({ e });
@@ -49,7 +51,8 @@ function ListItemModal({ id, contract, handleClose, update }: { update: Function
                             <div>
                                 <Input
                                     type="number"
-                                    label="Listing Price (in NEAR)"
+                                    step={0.01}
+                                    label="Listing Price (in cUSD)"
                                     {...register('price', { required: true })}
                                 />
                             </div>

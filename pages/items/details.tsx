@@ -1,14 +1,17 @@
 import { Button, Layout, Loader } from "components";
-import { getItem } from "lib/utils/market";
+import { getItemFromID } from "lib/market";
 import TimeAgo from "react-timeago";
 import { ExternalLink } from "react-feather";
-import { useNearContext } from "lib/utils/nearweb3";
-import { unlistItem, buyItem } from "lib/utils/market";
+import { useWeb3 } from "lib/web3";
+import { unlistItem, buyItem, approve } from "lib/market";
+import { useMarketContract, useERC20Contract } from "lib/contracts";
 import React, { Fragment, useCallback, useEffect, useState } from "react";
 import { Item } from "lib/interfaces";
-import { utils } from "near-api-js";
-import { typeformat } from "lib/typeFormat";
+import { formatBigNumber, truncateAddress, typeformat } from "lib/utils";
 import ListItemModal from "./listModal";
+import BigNumber from "bignumber.js";
+import { MARKET_ADDRESS } from "lib/constants"
+import { toast } from "react-toastify";
 
 function Details({ id }: { id: string }) {
 
@@ -24,60 +27,90 @@ function Details({ id }: { id: string }) {
     history: []
   }
 
-  const { accountId, login, contract } = useNearContext();
+  const { account, connect } = useWeb3();
+  const marketContract = useMarketContract();
+  const erc20 = useERC20Contract();
   const [item, setItem] = useState<Item>(template);
   const [loading, setLoading] = useState(false);
   const [pageLoad, setPageLoad] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  const [approved, setApproved] = useState<boolean>(null);
 
   const handleClose = () => setShowModal(false);
 
+  const checkIfContractIsApprovedToSpend = useCallback(async () => {
+    if (approved === null && item.price !== "0" && account !== null) {
+      const result = await erc20.methods.allowance(account, MARKET_ADDRESS).call();
+      setApproved(result >= item.price);
+    } else {
+      return
+    }
+  }, [account, item])
+
   const getItemData = useCallback(async () => {
-    if (contract !== null || accountId !== null || id !== null) {
+    if (marketContract !== null || account !== null || id !== null) {
       try {
         setPageLoad(true);
-        setItem(await getItem(id, contract));
+        setItem(await getItemFromID(id, marketContract));
       } catch (error) {
         console.log({ error });
       } finally {
         setPageLoad(false);
       }
     }
-  }, [contract, accountId, id]);
+  }, [marketContract, account, id]);
 
-  const buttonLabel = accountId ? (item.owner === accountId ? (item.isItemListed ? 'Remove listing' : 'Add listing') : 'Buy now') : 'Connect Wallet';
+  const buttonLabel = account ? (item.owner.toLocaleLowerCase() === account.toLocaleLowerCase() ? (item.isItemListed ? 'Remove listing' : 'Add listing') : (approved ? 'Buy now' : 'Approve')) : 'Connect Wallet';
 
   async function handleAction() {
-    if (contract === null) {
+    if (marketContract === null) {
+      console.log(marketContract)
       return
     }
-    if (!accountId) {
-      await login();
+    if (account === null) {
+      await connect();
       return;
     }
     setLoading(true);
     try {
-      if (item.owner === accountId) {
+      if (item.owner.toLocaleLowerCase() === account.toLocaleLowerCase()) {
         if (buttonLabel == "Add listing") {
           setShowModal(true);
         } else if (buttonLabel == "Remove listing") {
-          await unlistItem(item.id, contract);
+          await unlistItem(item.id, marketContract, account);
           getItemData();
         }
       } else {
-        await buyItem({ itemId: item.id, price: item.price }, contract);
-        getItemData();
+        if (!approved) {
+          try {
+            await approve({ amount: item.price }, erc20, account);
+            setApproved(true);
+            toast.success('Contract Approved');
+          } catch (e) {
+            toast.error('Approve contract to complete purchase')
+          }
+        } else {
+          await buyItem({ itemId: item.id }, marketContract, account);
+          getItemData();
+        }
       }
-    } catch (e) { }
+    } catch (e) {
+      console.log(e)
+    }
     setLoading(false);
+
   }
 
   useEffect(() => {
     if (id === null) {
       return () => { }
     }
-    getItemData();
-  }, [id, getItemData])
+    if (item.price === "0") {
+      getItemData();
+    }
+    checkIfContractIsApprovedToSpend();
+
+  }, [id, getItemData, checkIfContractIsApprovedToSpend, account])
   return (
     <Layout>
       {pageLoad ? (
@@ -89,7 +122,7 @@ function Details({ id }: { id: string }) {
               <div className="bg-gray-800 border border-gray-800 mb-8">
                 <img src={item.image} className="w-full rounded-sm shadow-xl" />
               </div>
-              {Number(utils.format.formatNearAmount(item.price)) > 0 && (
+              {Number(formatBigNumber(new BigNumber(item.price))) > 0 && (
                 <Fragment>
                   <div className="bg-gray-800 border border-gray-700 rounded-sm grid grid-cols-2 divide-x divide-gray-700">
                     <div className="p-4 text-center">
@@ -97,7 +130,7 @@ function Details({ id }: { id: string }) {
                         Item Price
                       </p>
                       <p className="font-mono text-xl leading-none">
-                        {utils.format.formatNearAmount(item.price)} NEAR
+                        {formatBigNumber(new BigNumber(item.price))} cUSD
                       </p>
                     </div>
                     <div className="p-3 flex flex-col justify-center items-center">
@@ -116,10 +149,10 @@ function Details({ id }: { id: string }) {
                 <p className="mb-8 w-full">
                   <span className="mr-1">Owned by</span>
                   <a
-                    href={`https://testnet.nearblocks.io/address/${item.owner}#transaction`}
+                    href={`https://alfajores-blockscout.celo-testnet.org/address/${item.owner}/transactions`}
                     target="_blank"
                     className="font-mono text-red-200 border-b border-dashed border-gray-700 truncate block">
-                    {item.owner}
+                    {truncateAddress(item.owner)}
                   </a>
                 </p>
                 <h3 className="mb-3 font-semibold text-lg">Details</h3>
@@ -151,24 +184,24 @@ function Details({ id }: { id: string }) {
                       </tr>
                     </thead>
                     <tbody className="font-mono">
-                      {item.history.reverse()?.map(transaction => (
+                      {item.history.map(transaction => (
                         <tr key={transaction.id}>
                           <td className="border-t border-gray-800 px-4 py-3">
                             <span className="flex items-center space-x-1" style={{ "color": "#D7342A" }}>
-                              <span>{typeformat(Number(transaction.type))}</span>
+                              <span>{typeformat(Number(transaction.tranType))}</span>
                               <ExternalLink size="0.85em" />
                             </span>
                           </td>
                           <td className="relative w-1/4 border-t border-gray-800">
                             <span className="absolute inset-0 truncate px-4 py-3">
-                              {transaction.from}
+                              {truncateAddress(transaction.from)}
                             </span>
                           </td>
                           <td className="relative w-1/4 border-t border-gray-800 px-4 py-3 text-right">
-                            {Number(transaction.price) ? `${utils.format.formatNearAmount(transaction.price)} NEAR` : '--'}
+                            {Number(transaction.price) ? `${formatBigNumber(new BigNumber(transaction.price))} cUSD` : '--'}
                           </td>
                           <td className="text-right border-t border-gray-800 px-4 py-3">
-                            <TimeAgo date={new Date(transaction.createdAt / 1000000)} />
+                            <TimeAgo date={new Date(transaction.createdAt * 1000)} />
                           </td>
                         </tr>
                       ))}
@@ -182,7 +215,7 @@ function Details({ id }: { id: string }) {
       )}
 
       {showModal ? (
-        <ListItemModal handleClose={handleClose} update={getItemData} contract={contract} id={item.id} />
+        <ListItemModal handleClose={handleClose} update={getItemData} marketContract={marketContract} id={item.id} />
       ) :
         <></>
       }

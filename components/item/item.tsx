@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import cx from 'classnames';
 import { Item } from 'lib/interfaces';
-import { utils } from "near-api-js";
+import { formatBigNumber } from 'lib/utils';
+import BigNumber from "bignumber.js"
 
 export function ItemCard({ item }: { item: Item }) {
   return (
@@ -16,7 +17,7 @@ export function ItemCard({ item }: { item: Item }) {
           <hr className="mt-2.5 mb-3 border-gray-700 border-dashed" />
           <span className="font-mono block">
             <span className="text-sm">
-              {utils.format.formatNearAmount(item.price)} NEAR
+              {formatBigNumber(new BigNumber(item.price))} cUSD
             </span>
           </span>
         </span>
