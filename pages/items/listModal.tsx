@@ -5,19 +5,18 @@ import { toast } from "react-toastify";
 import { useRouter } from "next/router";
 import { relistItem } from "lib/market";
 import { Contract } from "web3-eth-contract";
-import { useWeb3 } from "lib/web3"
+import { useContractKit } from "@celo-tools/use-contractkit";
 
 
 function ListItemModal({ id, marketContract, handleClose, update }: { update: Function, handleClose: Function, id: string, marketContract: Contract }) {
-    const { account } = useWeb3();
+    const { address, performActions } = useContractKit();
     const { register, handleSubmit } = useForm<any>({ defaultValues: { duration: "86400", type: "0" } });
     const [loading, setLoading] = useState(false);
-    const router = useRouter();
 
     async function handleCreate(params) {
         try {
             setLoading(true)
-            await relistItem(id, params.price, params.location, marketContract, account)
+            await relistItem(marketContract, performActions, { itemId: id, newPrice: params.price, newLocation: params.location })
             toast.success('Item relisted')
         } catch (e) {
             console.log({ e });

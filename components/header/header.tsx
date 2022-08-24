@@ -1,39 +1,39 @@
 import logo from 'lib/assets/logo.svg';
-import { useWeb3 } from 'lib/web3';
+import { useContractKit } from "@celo-tools/use-contractkit";
 import { Fragment, useEffect, useCallback, useState } from 'react';
+import { useBalance, useMarketContract } from "lib/hooks"
 import { Wallet } from 'components';
 import Link from 'next/link';
 
 export function Header() {
-  const { account, connect, checkConnection, disconnect, getBalance, getAccount } = useWeb3();
-  const [balance, setBalance] = useState(null);
+  /*
+  address : fetch the connected wallet address
+  destroy: terminate connection to user wallet
+  connect : connect to the celo blockchain
+   */
+  const { address, destroy, connect } = useContractKit()
   const [accountAddr, setAccountAddr] = useState("");
 
-  const checkIfConnected = useCallback(async () => {
-    await checkConnection()
-  }, []);
 
-  const getAccountData = useCallback(async () => {
-    if (account !== null) {
-      setAccountAddr(account)
-      const balance = await getBalance();
-      setBalance(balance)
+  //  fetch user's celo balance using hook
+  const { balance } = useBalance()
+  const marketContract = useMarketContract();
+
+  async function handleConnect() {
+    try {
+      await connect()
+    } catch (e) {
+      console.log(e);
     }
-  }, [account])
-
-  function logout() {
-    setAccountAddr("");
-    setBalance(null);
-    disconnect();
   }
 
   useEffect(() => {
-    if (account !== null || account !== accountAddr && balance === null) {
-      getAccountData();
+    if (address && marketContract.methods) {
+      setAccountAddr(address)
+    } else {
+      setAccountAddr("")
     }
-
-
-  }, [checkIfConnected, account, getAccountData])
+  }, [address, marketContract])
 
   return (
     <div className="bg-gray-900 border-b border-gray-800 text-white text-sm font-mono">
@@ -56,12 +56,12 @@ export function Header() {
               <Wallet
                 address={accountAddr}
                 amount={balance}
-                symbol="cUSD"
-                destroy={logout}
+                symbol="CELO"
+                destroy={destroy}
               />
             </Fragment>
           ) : (
-            <a onClick={connect} className="border border-red-500 px-3 py-2">Connect Wallet</a>
+            <a onClick={handleConnect} className="border border-red-500 px-3 py-2">Connect Wallet</a>
           )}
         </div>
       </div>

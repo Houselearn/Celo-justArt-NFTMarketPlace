@@ -1,39 +1,49 @@
 import { Button, Input, Layout, Select } from "components";
-import { useWeb3 } from "lib/web3";
-import { useEffect, useState } from "react";
+import { useContractKit } from "@celo-tools/use-contractkit"
+import { useState } from "react";
 import { useForm } from "react-hook-form";
-import { addNewItem } from "../lib/market"
-import { useMarketContract } from "lib/contracts";
+import { addNewItem, uploadToIpfs } from "../lib/market"
+import { useMarketContract } from "lib/hooks/";
 import { useRouter } from "next/router";
 import { toast } from "react-toastify";
-import { Item } from "lib/interfaces";
+import { ItemNFT, metadata } from "lib/interfaces";
 
 function Create() {
-  const { account, connect } = useWeb3();
+  const { address, connect, performActions } = useContractKit();
   const [loading, setLoading] = useState(false);
+  const [ipfsImage, setipfsImage] = useState("");
   const router = useRouter();
-  const { register, handleSubmit } = useForm<any>({ defaultValues: { duration: "86400", type: "0" } });
+  const { register, handleSubmit, watch } = useForm<any>({ defaultValues: { duration: "86400", type: "0" } });
+  const imageData = watch('image');
   const marketContract = useMarketContract();
+
+  // console.log(ipfsImage)
 
   async function handleCreate(params) {
     let id: string = "/"
     if (marketContract === null) {
       return
     }
-    if (!account) {
+    if (!address) {
       await connect();
     }
     try {
       setLoading(true)
-      const item: Item = {
+
+      const metadata: metadata = {
         name: params.name,
         description: params.description,
-        image: params.image,
+        image: ipfsImage,
+      }
+
+      const item: ItemNFT = {
+        metadata: metadata,
         location: params.location,
         price: params.price
       }
-      id = await addNewItem(item, marketContract, account);
+      id = await addNewItem(marketContract, performActions, { item });
       toast.success('Listing created')
+      setipfsImage("");
       router.push(`/items/${id}`);
     } catch (e) {
       console.log({ e });
@@ -43,7 +53,22 @@ function Create() {
     }
   }
 
-  const buttonLabel = !account ? 'Connect Wallet' : 'Create Listing';
+  async function upload() {
+    if (imageData && ipfsImage == "") {
+      if (!imageData[0]) {
+        return;
+      }
+      const imageUrl = await uploadToIpfs(imageData[0]);
+      console.log(imageUrl)
+      if (!imageUrl) {
+        alert("Failed to upload data")
+        return;
+      }
+      setipfsImage(imageUrl)
+    }
+  }
+
+  const buttonLabel = !address ? 'Connect Wallet' : 'Create Listing';
 
   return (
     <Layout>
@@ -70,13 +95,14 @@ function Create() {
               </div>
               <div>
                 <Input
-                  label="Item Image URL"
+                  type="file"
+                  onChange={upload()}
+                  label="Item Image"
                   {...register('image', { required: true })}
                 />
               </div>
               <div>
                 <Input
-
                   label="Item Location"
                   {...register('location', { required: true })}
                 />
@@ -85,7 +111,7 @@ function Create() {
                 <Input
                   type="number"
                   step={0.01}
-                  label="Price (in cUSD)"
+                  label="Price (in CELO)"
                   {...register('price', { required: true })}
                 />
               </div>

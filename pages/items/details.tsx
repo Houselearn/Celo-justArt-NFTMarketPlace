@@ -2,97 +2,78 @@ import { Button, Layout, Loader } from "components";
 import { getItemFromID } from "lib/market";
 import TimeAgo from "react-timeago";
 import { ExternalLink } from "react-feather";
-import { useWeb3 } from "lib/web3";
-import { unlistItem, buyItem, approve } from "lib/market";
-import { useMarketContract, useERC20Contract } from "lib/contracts";
+import { useContractKit } from "@celo-tools/use-contractkit";
+import { unlistItem, buyItem } from "lib/market";
+import { useMarketContract } from "lib/hooks";
 import React, { Fragment, useCallback, useEffect, useState } from "react";
-import { Item } from "lib/interfaces";
+import { ItemNFT, metadata } from "lib/interfaces";
 import { formatBigNumber, truncateAddress, typeformat } from "lib/utils";
 import ListItemModal from "./listModal";
 import BigNumber from "bignumber.js";
-import { MARKET_ADDRESS } from "lib/constants"
-import { toast } from "react-toastify";
+import axios from "axios";
 
 function Details({ id }: { id: string }) {
 
-  const template: Item = {
-    id: "...",
-    owner: "...",
+  const meta: metadata = {
     name: "...",
     description: "...",
     image: "...",
+  }
+
+  const template: ItemNFT = {
+    id: "...",
+    owner: "...",
     location: "...",
+    metadata: meta,
     price: "0",
     isItemListed: true,
     history: []
   }
 
-  const { account, connect } = useWeb3();
+  const { address, connect, performActions } = useContractKit();
   const marketContract = useMarketContract();
-  const erc20 = useERC20Contract();
-  const [item, setItem] = useState<Item>(template);
+  const [item, setItem] = useState<ItemNFT>(template);
   const [loading, setLoading] = useState(false);
   const [pageLoad, setPageLoad] = useState(false);
   const [showModal, setShowModal] = useState(false);
-  const [approved, setApproved] = useState<boolean>(null);
 
   const handleClose = () => setShowModal(false);
 
-  const checkIfContractIsApprovedToSpend = useCallback(async () => {
-    if (approved === null && item.price !== "0" && account !== null) {
-      const result = await erc20.methods.allowance(account, MARKET_ADDRESS).call();
-      setApproved(result >= item.price);
-    } else {
-      return
-    }
-  }, [account, item])
-
   const getItemData = useCallback(async () => {
-    if (marketContract !== null || account !== null || id !== null) {
+    if (marketContract.methods || address !== null || id !== null) {
       try {
         setPageLoad(true);
-        setItem(await getItemFromID(id, marketContract));
+        setItem(await getItemFromID(marketContract, { itemStringId: id }));
       } catch (error) {
         console.log({ error });
       } finally {
         setPageLoad(false);
       }
     }
-  }, [marketContract, account, id]);
+  }, [marketContract, address, id]);
 
-  const buttonLabel = account ? (item.owner.toLocaleLowerCase() === account.toLocaleLowerCase() ? (item.isItemListed ? 'Remove listing' : 'Add listing') : (approved ? 'Buy now' : 'Approve')) : 'Connect Wallet';
+  const buttonLabel = address ? (item.owner.toLocaleLowerCase() === address.toLocaleLowerCase() ? (item.isItemListed ? 'Remove listing' : 'Add listing') : 'Buy now') : 'Connect Wallet';
 
   async function handleAction() {
-    if (marketContract === null) {
-      console.log(marketContract)
+    if (!marketContract.methods) {
       return
     }
-    if (account === null) {
+    if (address === null) {
       await connect();
       return;
     }
     setLoading(true);
     try {
-      if (item.owner.toLocaleLowerCase() === account.toLocaleLowerCase()) {
+      if (item.owner.toLocaleLowerCase() === address.toLocaleLowerCase()) {
         if (buttonLabel == "Add listing") {
           setShowModal(true);
         } else if (buttonLabel == "Remove listing") {
-          await unlistItem(item.id, marketContract, account);
+          await unlistItem(marketContract, performActions, { itemId: id });
           getItemData();
         }
       } else {
-        if (!approved) {
-          try {
-            await approve({ amount: item.price }, erc20, account);
-            setApproved(true);
-            toast.success('Contract Approved');
-          } catch (e) {
-            toast.error('Approve contract to complete purchase')
-          }
-        } else {
-          await buyItem({ itemId: item.id }, marketContract, account);
-          getItemData();
-        }
+        await buyItem(marketContract, performActions, { itemId: id, price: item.price });
+        getItemData();
       }
     } catch (e) {
       console.log(e)
@@ -101,16 +82,16 @@ function Details({ id }: { id: string }) {
 
   }
 
+
   useEffect(() => {
     if (id === null) {
       return () => { }
     }
-    if (item.price === "0") {
+    if (item.price === "0" && marketContract.methods) {
       getItemData();
     }
-    checkIfContractIsApprovedToSpend();
 
-  }, [id, getItemData, checkIfContractIsApprovedToSpend, account])
+  }, [id, getItemData, address, marketContract])
   return (
     <Layout>
       {pageLoad ? (
@@ -120,9 +101,12 @@ function Details({ id }: { id: string }) {
           <div className="md:grid md:grid-cols-3 md:gap-8">
             <div className="mb-8 md:mb-0">
               <div className="bg-gray-800 border border-gray-800 mb-8">
-                <img src={item.image} className="w-full rounded-sm shadow-xl" />
+                <span
+                  className="block bg-cover bg-center"
+                  style={{ width: '100%', paddingBottom: '100%', backgroundImage: `url(${item.metadata.image})` }}
+                />
               </div>
-              {Number(formatBigNumber(new BigNumber(item.price))) > 0 && (
+              {(
                 <Fragment>
                   <div className="bg-gray-800 border border-gray-700 rounded-sm grid grid-cols-2 divide-x divide-gray-700">
                     <div className="p-4 text-center">
@@ -130,7 +114,7 @@ function Details({ id }: { id: string }) {
                         Item Price
                       </p>
                       <p className="font-mono text-xl leading-none">
-                        {formatBigNumber(new BigNumber(item.price))} cUSD
+                        {formatBigNumber(new BigNumber(item.price))} CELO
                       </p>
                     </div>
                     <div className="p-3 flex flex-col justify-center items-center">
@@ -143,9 +127,9 @@ function Details({ id }: { id: string }) {
             <div className="md:col-span-2">
               <div className="bg-gray-800s lg:border-l border-gray-700 border-dashesd lg:pl-8 rounded-sm">
                 <p className="text-lg font-medium">
-                  <a>{item.name}</a>
+                  <a>{item.metadata.name}</a>
                 </p>
-                <h1 className="text-4xl font-bold">{item.name}</h1>
+                <h1 className="text-4xl font-bold">{item.metadata.name}</h1>
                 <p className="mb-8 w-full">
                   <span className="mr-1">Owned by</span>
                   <a
@@ -159,7 +143,7 @@ function Details({ id }: { id: string }) {
                 <div className="mb-8 bg-gray-900 p-4 rounded-sm space-y-4">
                   <div>
                     <span className="font-bold text-sm block">Description</span>
-                    {item.description}
+                    {item.metadata.description}
                   </div>
                   <div>
                     <span className="font-bold text-sm block">Location</span>
@@ -198,7 +182,7 @@ function Details({ id }: { id: string }) {
                             </span>
                           </td>
                           <td className="relative w-1/4 border-t border-gray-800 px-4 py-3 text-right">
-                            {Number(transaction.price) ? `${formatBigNumber(new BigNumber(transaction.price))} cUSD` : '--'}
+                            {Number(transaction.price) ? `${formatBigNumber(new BigNumber(transaction.price))} CELO` : '--'}
                           </td>
                           <td className="text-right border-t border-gray-800 px-4 py-3">
                             <TimeAgo date={new Date(transaction.createdAt * 1000)} />

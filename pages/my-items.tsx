@@ -1,44 +1,39 @@
 import React, { useState, useCallback, useEffect } from "react";
 import { Layout, Loader } from "components";
+import { useContractKit } from "@celo-tools/use-contractkit"
 import { ItemList } from "components/item-list/item-list";
-import { getUserItemsArray, getItemFromID } from "lib/market";
-import { useWeb3 } from "lib/web3";
-import { useMarketContract } from "lib/contracts";
-import { Item } from "lib/interfaces";
+import { getUserItems } from "lib/market";
+import { useMarketContract } from "lib/hooks";
+import { ItemNFT } from "lib/interfaces";
 
 function MyListings() {
-  const [items, setItems] = useState<Item[]>(null);
+  const [items, setItems] = useState<ItemNFT[]>(null);
   const [loading, setLoading] = useState(false);
 
-  const { account } = useWeb3();
-  const contract = useMarketContract();
+  const { address } = useContractKit()
+  const marketContract = useMarketContract();
 
   // function to get the list of items
   const retrieveItems = useCallback(async () => {
-    if (contract === null && account === null) {
+    if (!marketContract.methods && address === null) {
       return
     }
     try {
       setLoading(true);
-      const userItemsIds = await getUserItemsArray(account, contract);
-      const userItemsArr: Item[] = [];
-      for (let i = 0; i < userItemsIds.length; i++) {
-        const item = await getItemFromID(userItemsIds[i], contract);
-        userItemsArr.push(item);
-      }
-      setItems(userItemsArr);
+      const userItems: ItemNFT[] = await getUserItems(marketContract, { address })
+      setItems(userItems);
     } catch (error) {
       console.log({ error });
     } finally {
       setLoading(false);
     }
-  }, [contract]);
+  }, [marketContract]);
 
   useEffect(() => {
-    if (items === null) {
+    if (items === null && marketContract.methods) {
       retrieveItems();
     }
-  }, [retrieveItems, account])
+  }, [retrieveItems, address, marketContract])
 
   return (
     <Layout>

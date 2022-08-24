@@ -1,8 +1,8 @@
 import React from "react"
 import { ItemCard } from "components";
-import { Item } from "lib/interfaces";
+import { ItemNFT } from "lib/interfaces";
 
-export function ItemList({ items }: { items: Item[] }) {
+export function ItemList({ items }: { items: ItemNFT[] }) {
   if (items) {
     return (
       <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">

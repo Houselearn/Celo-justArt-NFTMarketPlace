@@ -3,16 +3,20 @@ export interface Collection {
   name?: string;
 }
 
-export interface Item {
+export interface ItemNFT {
   id?: string;
   owner?: string;
-  name: string;
-  description: string;
-  image: string;
+  metadata?: metadata;
   location: string;
   price: string;
   isItemListed?: boolean;
   history?: Transaction[];
+}
+
+export interface metadata {
+  name: string;
+  description: string;
+  image: string;
 }
 
 export interface Transaction {

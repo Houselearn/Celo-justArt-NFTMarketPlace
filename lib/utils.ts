@@ -20,13 +20,16 @@ export const formatBigNumber = (num: BigNumber) => {
 export function typeformat(type: number) {
     switch (type) {
         case 0: {
-            return "ADD";
+            return "UNAVAILABLE";
         }
         case 1: {
-            return "REMOVE";
+            return "ADD";
         }
         case 2: {
-            return "BUY";
+            return "REMOVE";
+        }
+        case 3: {
+            return "BUY"
         }
         default: {
             return "Loading";
