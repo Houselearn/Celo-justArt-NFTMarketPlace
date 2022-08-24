@@ -112,7 +112,7 @@ export async function fetchNftMeta(ipfsUrl: string) {
 export async function getUserItems(marketContract: Contract, params: { address: string }) {
     const { address } = params;
     let userItems: ItemNFT[] = await marketContract.methods.getUserItems(address).call();
-    const items: ItemNFT[] = [];
+    const items = [];
 
     for (let i = 0; i < userItems.length; i++) {
         let item: ItemNFT = userItems[i];
@@ -135,9 +135,9 @@ export async function getUserItems(marketContract: Contract, params: { address: 
             });
         });
 
-        items.push(item);
+        items.push(_data);
     }
-    return items;
+    return Promise.all(items);
 }
 
 // get all items
