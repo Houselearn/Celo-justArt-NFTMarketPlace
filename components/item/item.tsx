@@ -17,7 +17,7 @@ export function ItemCard({ item }: { item: ItemNFT }) {
           <hr className="mt-2.5 mb-3 border-gray-700 border-dashed" />
           <span className="font-mono block">
             <span className="text-sm">
-              {formatBigNumber(new BigNumber(item.price))} cUSD
+              {formatBigNumber(new BigNumber(item.price))} CELO
             </span>
           </span>
         </span>
