@@ -8,7 +8,7 @@ Features
 - Users can view their own listings or items they've bought in the my-items page.
 - There is an option for users to relist an item they've bought, and also change the price of that item.
 
-NOTE: Connecitivity lags on demo may occur buy this is solely due to axios and ipfs, with faster network connectivity this issue will not be experienced.
+NOTE: Connecitivity lags on demo may occur but this is solely due to axios and ipfs, with faster network connectivity this issue will not be experienced.
 
 
 # Next.js + Tailwind CSS Example
