@@ -59,7 +59,6 @@ function Create() {
         return;
       }
       const imageUrl = await uploadToIpfs(imageData[0]);
-      console.log(imageUrl)
       if (!imageUrl) {
         alert("Failed to upload data")
         return;

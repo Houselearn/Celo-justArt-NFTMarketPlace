@@ -162,6 +162,11 @@ export async function getItemFromID(marketContract: Contract, params: { itemStri
     return await itemMarketData;
 }
 
+export function idLookUp(marketContract: Contract, params: { itemStringId: string }) {
+    const { itemStringId } = params;
+    return marketContract.methods.lookUpStringId(itemStringId).call();
+}
+
 function _getItemFromID(marketContract: Contract, itemId: number) {
     const _itemdata = new Promise<ItemNFT>(async (resolve, reject) => {
         const data: ItemNFT = await marketContract.methods.getItemFromID(itemId).call();

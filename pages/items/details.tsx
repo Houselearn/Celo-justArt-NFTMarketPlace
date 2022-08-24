@@ -3,14 +3,14 @@ import { getItemFromID } from "lib/market";
 import TimeAgo from "react-timeago";
 import { ExternalLink } from "react-feather";
 import { useContractKit } from "@celo-tools/use-contractkit";
-import { unlistItem, buyItem } from "lib/market";
+import { unlistItem, buyItem, idLookUp } from "lib/market";
 import { useMarketContract } from "lib/hooks";
 import React, { Fragment, useCallback, useEffect, useState } from "react";
 import { ItemNFT, metadata } from "lib/interfaces";
 import { formatBigNumber, truncateAddress, typeformat } from "lib/utils";
 import ListItemModal from "./listModal";
 import BigNumber from "bignumber.js";
-import axios from "axios";
+import justArtAddress from 'lib/contracts/justArt-address.json';
 
 function Details({ id }: { id: string }) {
 
@@ -33,6 +33,7 @@ function Details({ id }: { id: string }) {
   const { address, connect, performActions } = useContractKit();
   const marketContract = useMarketContract();
   const [item, setItem] = useState<ItemNFT>(template);
+  const [itemTokenID, setTokenID] = useState(-1);
   const [loading, setLoading] = useState(false);
   const [pageLoad, setPageLoad] = useState(false);
   const [showModal, setShowModal] = useState(false);
@@ -44,6 +45,7 @@ function Details({ id }: { id: string }) {
       try {
         setPageLoad(true);
         setItem(await getItemFromID(marketContract, { itemStringId: id }));
+        setTokenID(await idLookUp(marketContract, { itemStringId: id }))
       } catch (error) {
         console.log({ error });
       } finally {
@@ -152,7 +154,9 @@ function Details({ id }: { id: string }) {
                   <div className="grid grid-cols-2 gap-8">
                     <div>
                       <span className="font-bold text-sm block">Item ID</span>
-                      {item.id}
+                      <a href={`https://alfajores-blockscout.celo-testnet.org/token/${justArtAddress.addr}/instance/${itemTokenID}/token-transfers`} target="_blank" className="truncate block">
+                        {item.id}
+                      </a>
                     </div>
                   </div>
                 </div>
