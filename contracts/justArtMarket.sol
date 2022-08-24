@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
-
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
+
+import "hardhat/console.sol";
 
 contract JustArtMarket is
     Ownable,
@@ -78,17 +78,13 @@ contract JustArtMarket is
     mapping(address => uint256) public balance;
     mapping(address => string[]) public userItems;
 
-    IERC20 public marketToken;
-
     // METHODS
-    constructor(uint256 _marketFeePercentage, address _marketToken)
-        ERC721("justArt", "jART")
+    constructor(uint256 _marketFeePercentage)
+        ERC721("justArt Token", "jART Token")
     {
         // so the marketFee percentage will be deducted from the selling price of the item
         // currently set to 5%
         // marketToken is currently set to celo
-
-        marketToken = IERC20(_marketToken);
         marketFeePercentage = _marketFeePercentage;
     }
 
@@ -178,15 +174,9 @@ contract JustArtMarket is
         uint256 fee = getItemFee(_itemTokenId);
         uint256 remaining = _Item.price - fee;
 
-        require(
-            marketToken.transfer(_Item.owner, remaining),
-            "Failed to send remaining to item owner"
-        );
-
-        require(
-            marketToken.transfer(owner(), fee),
-            "Failed to fee to contract owner"
-        );
+        // transfer fees
+        payable(owner()).transfer(fee);
+        payable(_Item.owner).transfer(remaining);
 
         // transfer item to buyer
         _transfer(address(this), msg.sender, _itemTokenId);

@@ -14,14 +14,11 @@ async function main() {
   // await hre.run('compile');
 
   const marketFeePercentage = 5;
-  const marketToken = "0x2cCD5BA7C938610e59cA0feA4b7f98832967681D"; //celo token
+  // const marketToken = "0x2cCD5BA7C938610e59cA0feA4b7f98832967681D"; //celo token
 
   const JustArtMarket = await hre.ethers.getContractFactory("JustArtMarket");
   console.log("Deploying.......");
-  const justArtMarket = await JustArtMarket.deploy(
-    marketFeePercentage,
-    marketToken
-  );
+  const justArtMarket = await JustArtMarket.deploy(marketFeePercentage);
 
   await justArtMarket.deployed();
 

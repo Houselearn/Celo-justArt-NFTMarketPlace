@@ -54,7 +54,14 @@ function Details({ id }: { id: string }) {
     }
   }, [marketContract, address, id]);
 
-  const buttonLabel = address ? (item.owner.toLocaleLowerCase() === address.toLocaleLowerCase() ? (item.isItemListed ? 'Remove listing' : 'Add listing') : 'Buy now') : 'Connect Wallet';
+  const isOwner = () => {
+    if (address) {
+      return item.owner.toLocaleLowerCase() === address.toLocaleLowerCase()
+    } else {
+      return
+    }
+  }
+  const buttonLabel = address ? (isOwner() ? (item.isItemListed ? 'Remove listing' : 'Add listing') : 'Buy now') : 'Connect Wallet';
 
   async function handleAction() {
     if (!marketContract.methods) {
@@ -66,7 +73,7 @@ function Details({ id }: { id: string }) {
     }
     setLoading(true);
     try {
-      if (item.owner.toLocaleLowerCase() === address.toLocaleLowerCase()) {
+      if (isOwner()) {
         if (buttonLabel == "Add listing") {
           setShowModal(true);
         } else if (buttonLabel == "Remove listing") {
@@ -108,7 +115,7 @@ function Details({ id }: { id: string }) {
                   style={{ width: '100%', paddingBottom: '100%', backgroundImage: `url(${item.metadata.image})` }}
                 />
               </div>
-              {(
+              {(isOwner() || item.isItemListed) && (
                 <Fragment>
                   <div className="bg-gray-800 border border-gray-700 rounded-sm grid grid-cols-2 divide-x divide-gray-700">
                     <div className="p-4 text-center">
