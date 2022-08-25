@@ -7,8 +7,6 @@ import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 
-import "hardhat/console.sol";
-
 contract JustArtMarket is
     Ownable,
     ReentrancyGuard,
@@ -66,69 +64,64 @@ contract JustArtMarket is
 
     // VARIABLES
     uint256 private marketFeePercentage;
-    mapping(uint256 => Item) public Items;
+    mapping(uint256 => Item) private Items;
 
-    //mapping that keeps track of generated item string id to their item token id
-    mapping(string => uint256) public itemStringIds;
+    mapping(string => bool) private stringIdExists;
 
     // keeps track of ids that exist
-    mapping(uint256 => bool) public exists;
+    mapping(uint256 => bool) private exists;
 
-    // keeps track of the number of items a user owns
-    mapping(address => uint256) public balance;
-    mapping(address => string[]) public userItems;
+    mapping(address => uint[]) public userItems;
 
     // METHODS
-    constructor(uint256 _marketFeePercentage)
-        ERC721("justArt Token", "jART Token")
-    {
+    constructor() ERC721("justArt Token", "jART Token") {
         // so the marketFee percentage will be deducted from the selling price of the item
         // currently set to 5%
         // marketToken is currently set to celo
-        marketFeePercentage = _marketFeePercentage;
+        marketFeePercentage = 5;
     }
 
-    /// @dev check if item with id _itemTokenId exist
+    /// @dev checks if item with id _itemTokenId exist
     modifier exist(uint256 _itemTokenId) {
         require(exists[_itemTokenId], "Query of nonexistent token");
         _;
     }
 
-    /// @dev check if caller is owner of item with id _itemTokenId exist
+    /// @dev checks if caller is owner of item with id _itemTokenId exist
     modifier checkIfItemOwner(uint256 _itemTokenId) {
         require(Items[_itemTokenId].owner == msg.sender, "Only item owner");
         _;
     }
 
-    /// @dev check if item with id _itemTokenId is listed
+    /// @dev checks if item with id _itemTokenId is listed
     modifier checkIfListed(uint256 _itemTokenId) {
         require(Items[_itemTokenId].isItemListed, "Item isn't listed");
         _;
     }
 
-    /// @dev create token
-
-    function mintToken(uint256 _tokenId, string memory _tokenUri) internal {
-        //mint to caller
-        _safeMint(msg.sender, _tokenId);
-
-        // set token uri
-        _setTokenURI(_tokenId, _tokenUri);
+    /// @dev checks if price is valid
+    modifier checkPrice(uint _price) {
+        require(_price >= 1 ether, "Price of item must be at least one CELO");
+        _;
     }
 
     /// @dev allow users to add an item to the marketplace
     function addNewItem(
-        string memory _itemStringId,
-        string memory _uri,
-        string memory _location,
+        string calldata _itemStringId,
+        string calldata _uri,
+        string calldata _location,
         uint256 _price
-    ) external {
+    ) external checkPrice(_price) {
+        require(bytes(_itemStringId).length > 0, "Empty item's string id");
+        require(bytes(_uri).length > 0, "Empty uri");
+        require(
+            !stringIdExists[_itemStringId],
+            "Item with this string id already exists"
+        );
         uint256 itemTokenId = _tokenIdCounter.current();
+        _tokenIdCounter.increment();
 
-        itemStringIds[_itemStringId] = itemTokenId;
-
-        // mint token
-        mintToken(itemTokenId, _uri);
+        stringIdExists[_itemStringId] = true;
 
         // create item data
         Item storage _Item = Items[itemTokenId];
@@ -141,18 +134,20 @@ contract JustArtMarket is
         // transfer from msg.sender to market
         _transfer(msg.sender, address(this), itemTokenId);
 
+        //mint to caller
+        _safeMint(msg.sender, itemTokenId);
+
+        // set token uri
+        _setTokenURI(itemTokenId, _uri);
+
         //add new transaction history
         newHistory(itemTokenId, Type.ADD);
 
-        // update user items balance
-        balance[msg.sender]++;
         // sets item exist to true
         exists[itemTokenId] = true;
 
         //add to user items
-        userItems[msg.sender].push(_itemStringId);
-
-        _tokenIdCounter.increment();
+        userItems[msg.sender].push(itemTokenId);
 
         emit ItemCreated(msg.sender, _Item.id, _price);
     }
@@ -169,33 +164,32 @@ contract JustArtMarket is
 
         // check if amount attached is equal to item price
         require(_Item.price == msg.value, "AMOUNT_NOT_EQUAL");
-
+        require(_Item.owner != msg.sender, "You can't buy your own item");
         // calculate due market fee for item
         uint256 fee = getItemFee(_itemTokenId);
         uint256 remaining = _Item.price - fee;
 
-        // transfer fees
-        payable(owner()).transfer(fee);
-        payable(_Item.owner).transfer(remaining);
-
-        // transfer item to buyer
-        _transfer(address(this), msg.sender, _itemTokenId);
-
         // add item to buyer
-        userItems[msg.sender].push(_Item.id);
-
-        //update balances of item owner and new buyer
-        balance[msg.sender]++;
-        balance[_Item.owner]--;
+        userItems[msg.sender].push(_itemTokenId);
 
         //unlist Item from market
         _Item.isItemListed = false;
+
+        address previousOwner = _Item.owner;
 
         //set buyer as item owner
         _Item.owner = msg.sender;
 
         //add new transaction history
         newHistory(_itemTokenId, Type.BUY);
+
+        // transfer item to buyer
+        _transfer(address(this), msg.sender, _itemTokenId);
+        // transfer fees
+        (bool success, ) = payable(owner()).call{value: fee}("");
+        require(success, "Transfer of fee failed");
+        (bool sent, ) = payable(previousOwner).call{value: remaining}("");
+        require(sent, "Transfer failed");
 
         emit ItemSold(msg.sender, _Item.id, _Item.price);
     }
@@ -205,7 +199,12 @@ contract JustArtMarket is
         uint256 _itemTokenId,
         string calldata _newLocation,
         uint256 _price
-    ) external exist(_itemTokenId) checkIfItemOwner(_itemTokenId) {
+    )
+        public
+        exist(_itemTokenId)
+        checkIfItemOwner(_itemTokenId)
+        checkPrice(_price)
+    {
         // get item from storage
         Item storage _Item = Items[_itemTokenId];
 
@@ -227,7 +226,7 @@ contract JustArtMarket is
 
     /// @dev allow users to unlist an item
     function unlistItem(uint256 _itemTokenId)
-        external
+        public
         exist(_itemTokenId)
         checkIfItemOwner(_itemTokenId)
         checkIfListed(_itemTokenId)
@@ -249,10 +248,7 @@ contract JustArtMarket is
 
     /// @dev allows the contract's owner to change the market fee
     /// @notice fee percentage can't be higher than 10%
-    function updateMarketFeePercentage(uint256 newPercentage)
-        external
-        onlyOwner
-    {
+    function updateMarketFeePercentage(uint256 newPercentage) public onlyOwner {
         require(newPercentage <= 10, "Fee can't be higher than 10%");
         marketFeePercentage = newPercentage;
         emit NewMarketFee(msg.sender, newPercentage);
@@ -260,7 +256,7 @@ contract JustArtMarket is
 
     /// @dev returns the due market fee for item
     function getItemFee(uint256 _itemTokenId)
-        internal
+        private
         view
         exist(_itemTokenId)
         returns (uint256)
@@ -272,13 +268,12 @@ contract JustArtMarket is
     }
 
     /// @dev push a transaction log onto the history array of an item
-    function newHistory(uint256 _itemTokenId, Type _tranType) internal {
+    function newHistory(uint256 _itemTokenId, Type _tranType) private {
         Item storage _Item = Items[_itemTokenId];
-        uint256 id = _Item.history.length;
 
         _Item.history.push(
             Transaction({
-                id: id,
+                id: _Item.history.length,
                 tranType: _tranType,
                 from: msg.sender,
                 price: _Item.price,
@@ -291,7 +286,7 @@ contract JustArtMarket is
 
     //returns item from itemTokenId
     function getItemFromID(uint256 _itemTokenId)
-        external
+        public
         view
         returns (Item memory)
     {
@@ -299,18 +294,17 @@ contract JustArtMarket is
     }
 
     /// @dev return item count
-    function getItemCounts() external view returns (uint256) {
+    function getItemCounts() public view returns (uint256) {
         return _tokenIdCounter.current();
     }
 
     /// @dev return useritems array
-    function getUserItems(address _user) external view returns (Item[] memory) {
+    function getUserItems(address _user) public view returns (Item[] memory) {
         require(_user != address(0), "Invalid address");
-        Item[] memory itemsArray = new Item[](balance[_user]);
+        Item[] memory itemsArray = new Item[](balanceOf(_user));
         uint256 index = 0;
         for (uint256 i = 0; i < userItems[_user].length; i++) {
-            string memory currentStringId = userItems[_user][i];
-            uint256 currentId = itemStringIds[currentStringId];
+            uint256 currentId = userItems[_user][i];
             if (Items[currentId].owner == msg.sender) {
                 itemsArray[index] = Items[currentId];
                 index++;
@@ -319,17 +313,8 @@ contract JustArtMarket is
         return itemsArray;
     }
 
-    /// @dev itemsStringIds lookup
-    function lookUpStringId(string memory _itemStringId)
-        external
-        view
-        returns (uint256)
-    {
-        return itemStringIds[_itemStringId];
-    }
-
     // returns marketfee percentage
-    function getMarketFee() external view returns (uint256) {
+    function getMarketFee() public view returns (uint256) {
         return marketFeePercentage;
     }
 
@@ -368,5 +353,32 @@ contract JustArtMarket is
         returns (bool)
     {
         return super.supportsInterface(interfaceId);
+    }
+
+    /**
+     * @dev See {IERC721-transferFrom}.
+     * Changes is made to transferFrom to make necessary changes to userItems
+     */
+    function transferFrom(
+        address from,
+        address to,
+        uint256 _tokenId
+    ) public override {
+        userItems[to].push(_tokenId);
+        super.transferFrom(from, to, _tokenId);
+    }
+
+    /**
+     * @dev See {IERC721-safeTransferFrom}.
+     * Changes is made to transferFrom to make necessary changes to userItems
+     */
+    function safeTransferFrom(
+        address from,
+        address to,
+        uint256 _tokenId,
+        bytes memory data
+    ) public override {
+        userItems[to].push(_tokenId);
+        _safeTransfer(from, to, _tokenId, data);
     }
 }
