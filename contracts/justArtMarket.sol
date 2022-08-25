@@ -305,7 +305,7 @@ contract JustArtMarket is
         uint256 index = 0;
         for (uint256 i = 0; i < userItems[_user].length; i++) {
             uint256 currentId = userItems[_user][i];
-            if (Items[currentId].owner == msg.sender) {
+            if (ownerOf(currentId) == msg.sender) {
                 itemsArray[index] = Items[currentId];
                 index++;
             }
