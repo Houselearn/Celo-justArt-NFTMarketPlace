@@ -106,7 +106,7 @@ contract JustArtMarket is
     }
 
     /// @dev allow users to add an item to the marketplace
-    function addNewItem(
+    function listNewItem(
         string calldata _itemStringId,
         string calldata _uri,
         string calldata _location,
@@ -153,7 +153,7 @@ contract JustArtMarket is
     }
 
     /// @dev allow users to buy a listed item
-    function buyItems(uint256 _itemTokenId)
+    function buyItem(uint256 _itemTokenId)
         external
         payable
         exist(_itemTokenId)
@@ -194,6 +194,28 @@ contract JustArtMarket is
         emit ItemSold(msg.sender, _Item.id, _Item.price);
     }
 
+    /// @dev allow users to unlist an item
+    function unlistItem(uint256 _itemTokenId)
+        public
+        exist(_itemTokenId)
+        checkIfItemOwner(_itemTokenId)
+        checkIfListed(_itemTokenId)
+    {
+        // get item from storage
+        Item storage _Item = Items[_itemTokenId];
+
+        // transfer item from market to owner
+        _transfer(address(this), msg.sender, _itemTokenId);
+
+        //update location, price and listed parameter
+        _Item.isItemListed = false;
+        _Item.price = 0;
+
+        //add new transaction history
+        newHistory(_itemTokenId, Type.REMOVE);
+        emit ItemRemoved(msg.sender, _Item.id);
+    }
+
     /// @dev allow users to relist an item
     function relistItem(
         uint256 _itemTokenId,
@@ -224,27 +246,6 @@ contract JustArtMarket is
         emit ItemRelisted(msg.sender, _Item.id, _Item.price);
     }
 
-    /// @dev allow users to unlist an item
-    function unlistItem(uint256 _itemTokenId)
-        public
-        exist(_itemTokenId)
-        checkIfItemOwner(_itemTokenId)
-        checkIfListed(_itemTokenId)
-    {
-        // get item from storage
-        Item storage _Item = Items[_itemTokenId];
-
-        // transfer item from market to owner
-        _transfer(address(this), msg.sender, _itemTokenId);
-
-        //update location, price and listed parameter
-        _Item.isItemListed = false;
-        _Item.price = 0;
-
-        //add new transaction history
-        newHistory(_itemTokenId, Type.REMOVE);
-        emit ItemRemoved(msg.sender, _Item.id);
-    }
 
     /// @dev allows the contract's owner to change the market fee
     /// @notice fee percentage can't be higher than 10%
@@ -252,19 +253,6 @@ contract JustArtMarket is
         require(newPercentage <= 10, "Fee can't be higher than 10%");
         marketFeePercentage = newPercentage;
         emit NewMarketFee(msg.sender, newPercentage);
-    }
-
-    /// @dev returns the due market fee for item
-    function getItemFee(uint256 _itemTokenId)
-        private
-        view
-        exist(_itemTokenId)
-        returns (uint256)
-    {
-        require(Items[_itemTokenId].isItemListed, "Item isn't listed");
-        // to avoid overflow/underflow issues, price is divided by 100 to get the feeAmount per each percent
-        uint256 feePerPecent = Items[_itemTokenId].price / 100;
-        return feePerPecent * marketFeePercentage;
     }
 
     /// @dev push a transaction log onto the history array of an item
@@ -283,6 +271,20 @@ contract JustArtMarket is
     }
 
     // View Methods
+
+    /// @dev returns the due market fee for item
+    function getItemFee(uint256 _itemTokenId)
+        private
+        view
+        exist(_itemTokenId)
+        checkIfListed(_itemTokenId)
+        returns (uint256)
+    {
+        // to avoid overflow/underflow issues, price is divided by 100 to get the feeAmount per each percent
+        uint256 feePerPecent = Items[_itemTokenId].price / 100;
+        return feePerPecent * marketFeePercentage;
+    }
+
 
     //returns item from itemTokenId
     function getItemFromID(uint256 _itemTokenId)
@@ -319,7 +321,6 @@ contract JustArtMarket is
     }
 
     // The following functions are overrides required by Solidity.
-
     function _beforeTokenTransfer(
         address from,
         address to,
