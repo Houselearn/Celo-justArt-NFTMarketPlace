@@ -24,7 +24,7 @@ export const uploadToIpfs = async (file: string) => {
         const added = await client.add(file, {
             progress: (prog) => console.log(`received: ${prog}`),
         });
-        return `https://ipfs.infura.io/ipfs/${added.path}`;
+        return `https://justartmarket.infura-ipfs.io/ipfs/${added.path}`;
     } catch (error) {
         console.log("Error uploading file: ", error);
     }
@@ -44,7 +44,7 @@ export async function addNewItem(marketContract: Contract, perFormActions: Funct
         // save metadata to IPFS
         const added = await client.add(data);
         // IPFS url for uploaded metadata
-        const url = `https://ipfs.infura.io/ipfs/${added.path}`;
+        const url = `https://justartmarket.infura-ipfs.io/ipfs/${added.path}`;
         // mint the NFT and save the IPFS url to the blockchain
         await marketContract.methods
             .addNewItem(item.id, url, item.location, item.price)
