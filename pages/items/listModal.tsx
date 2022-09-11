@@ -51,7 +51,7 @@ function ListItemModal({ id, marketContract, handleClose, update }: { update: Fu
                                 <Input
                                     type="number"
                                     step={0.01}
-                                    label="Listing Price (in cUSD)"
+                                    label="Listing Price (in CELO)"
                                     {...register('price', { required: true })}
                                 />
                             </div>
